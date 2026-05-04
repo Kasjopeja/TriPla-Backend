@@ -86,11 +86,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend
 
       - name: Trivy – CVE scan obrazu
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: tripla-api:${{ github.sha }}
           format: table
-          exit-code: '0'                # nie blokuj CI – tylko raport
+          exit-code: "0" # nie blokuj CI – tylko raport
           severity: HIGH,CRITICAL
           ignore-unfixed: true
 
