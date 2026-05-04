@@ -1,0 +1,433 @@
+### =========================================================
+###  TriPla Backend – przykładowe zapytania REST
+###
+###  Konta demo (zasiane przez DataSeeder):
+###    alice@example.com / Password123!   (organizatorka Krakowa, member Włoch)
+###    bob@example.com   / Password123!   (editor Krakowa, organizator Włoch)
+###    carol@example.com / Password123!   (member Krakowa)
+###
+###  Zapytania poniżej używają prefixu "TEST:" w nazwach,
+###  żeby nie mylić rekordów testowych z seedowanymi.
+### =========================================================
+
+@host = http://localhost:5186
+@contentType = application/json
+
+# Wypełniane automatycznie przez zapytania poniżej (login, create, ...)
+@authToken =
+@userId =
+@secondUserToken =
+@secondUserId =
+@tripId =
+@attractionId =
+@expenseId =
+@commentId =
+@parentCommentId =
+@participantUserId =
+
+
+### =========================================================
+### 1. AUTH
+### =========================================================
+
+### 1.1 Rejestracja TESTOWEGO użytkownika głównego
+# @name registerTestUser
+POST {{host}}/api/auth/register
+Content-Type: {{contentType}}
+
+{
+  "firstName": "TestUser",
+  "lastName": "Main",
+  "email": "test.main@example.com",
+  "password": "Password123!"
+}
+
+> {%
+    client.global.set("authToken", response.body.token);
+    client.global.set("userId", response.body.userId);
+%}
+
+
+### 1.2 Logowanie TESTOWEGO użytkownika głównego (gdy już istnieje)
+# @name loginTestUser
+POST {{host}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "test.main@example.com",
+  "password": "Password123!"
+}
+
+> {%
+    client.global.set("authToken", response.body.token);
+    client.global.set("userId", response.body.userId);
+%}
+
+
+### 1.3 Rejestracja drugiego TESTOWEGO użytkownika (do zaproszeń i zmiany roli)
+# @name registerTestBuddy
+POST {{host}}/api/auth/register
+Content-Type: {{contentType}}
+
+{
+  "firstName": "TestBuddy",
+  "lastName": "Helper",
+  "email": "test.buddy@example.com",
+  "password": "Password123!"
+}
+
+> {%
+    client.global.set("secondUserToken", response.body.token);
+    client.global.set("secondUserId", response.body.userId);
+%}
+
+
+### 1.4 Logowanie drugiego TESTOWEGO użytkownika
+# @name loginTestBuddy
+POST {{host}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "test.buddy@example.com",
+  "password": "Password123!"
+}
+
+> {%
+    client.global.set("secondUserToken", response.body.token);
+    client.global.set("secondUserId", response.body.userId);
+%}
+
+
+### 1.5 Logowanie jako Alice (demo z seedera – do oglądania seedowanej historii)
+POST {{host}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "alice@example.com",
+  "password": "Password123!"
+}
+
+> {%
+    client.global.set("authToken", response.body.token);
+    client.global.set("userId", response.body.userId);
+%}
+
+
+### =========================================================
+### 2. TRIPS
+### =========================================================
+
+### 2.1 Utworzenie testowej wycieczki (twórca staje się Ownerem)
+# @name createTestTrip
+POST {{host}}/api/trips
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "name": "TEST: Wycieczka do testowania API",
+  "description": "Rekord testowy tworzony z pliku .http – można bez strachu usuwać.",
+  "startDate": "2027-01-10T00:00:00Z",
+  "endDate": "2027-01-15T00:00:00Z"
+}
+
+> {% client.global.set("tripId", response.body.id); %}
+
+
+### 2.2 Lista moich wycieczek
+GET {{host}}/api/trips
+Authorization: Bearer {{authToken}}
+
+
+### 2.3 Szczegóły wycieczki (participants + attractions + expenses + comments)
+GET {{host}}/api/trips/{{tripId}}
+Authorization: Bearer {{authToken}}
+
+
+### 2.4 Aktualizacja wycieczki (wymaga roli Editor+)
+PUT {{host}}/api/trips/{{tripId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "name": "TEST: Wycieczka do testowania API (edytowana)",
+  "description": "Zmieniony opis – kontrola UpdateAsync",
+  "startDate": "2027-01-11T00:00:00Z",
+  "endDate": "2027-01-16T00:00:00Z"
+}
+
+
+### 2.5 Usunięcie wycieczki (wymaga roli Owner)
+### UWAGA: kasuje kaskadowo wszystko – uruchom dopiero po zabawie.
+DELETE {{host}}/api/trips/{{tripId}}
+Authorization: Bearer {{authToken}}
+
+
+### =========================================================
+### 3. ATTRACTIONS (Editor+ może dodawać/edytować/usuwać)
+### =========================================================
+
+### 3.1 Dodanie atrakcji
+# @name createTestAttraction
+POST {{host}}/api/trips/{{tripId}}/attractions
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "name": "TEST: Atrakcja próbna",
+  "description": "Opis atrakcji wygenerowany z pliku .http",
+  "street": "ul. Testowa 1",
+  "city": "Testowo",
+  "country": "Polska",
+  "plannedAt": "2027-01-11T10:00:00Z"
+}
+
+> {% client.global.set("attractionId", response.body.id); %}
+
+
+### 3.2 Lista atrakcji w wycieczce
+GET {{host}}/api/trips/{{tripId}}/attractions
+Authorization: Bearer {{authToken}}
+
+
+### 3.3 Edycja atrakcji
+PUT {{host}}/api/trips/attractions/{{attractionId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "name": "TEST: Atrakcja próbna (po edycji)",
+  "description": "Zmieniony opis",
+  "street": "ul. Testowa 2",
+  "city": "Testowo",
+  "country": "Polska",
+  "plannedAt": "2027-01-11T12:00:00Z"
+}
+
+
+### 3.4 Usunięcie atrakcji
+DELETE {{host}}/api/trips/attractions/{{attractionId}}
+Authorization: Bearer {{authToken}}
+
+
+### =========================================================
+### 4. EXPENSES (edit/delete tylko autor-płacący)
+### =========================================================
+
+# Kategorie: 0=Accommodation, 1=Transport, 2=Food, 3=Activities, 4=Shopping, 5=Other
+
+### 4.1 Dodanie wydatku BEZ podziału (cały koszt pokrywa płatnik)
+# @name createTestExpenseNoSplit
+POST {{host}}/api/trips/{{tripId}}/expenses
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "title": "TEST: Wydatek bez podziału",
+  "description": "Opis testowy",
+  "amount": 99.99,
+  "currency": "PLN",
+  "category": 5,
+  "date": "2027-01-11T00:00:00Z",
+  "splits": null
+}
+
+> {% client.global.set("expenseId", response.body.id); %}
+
+
+### 4.2 Dodanie wydatku Z równym podziałem (najpierw zaproś buddy w sekcji 6!)
+POST {{host}}/api/trips/{{tripId}}/expenses
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "title": "TEST: Wydatek dzielony po równo",
+  "description": "Podział 60/60 między Ciebie i buddy'ego",
+  "amount": 120.00,
+  "currency": "PLN",
+  "category": 2,
+  "date": "2027-01-11T19:00:00Z",
+  "splits": [
+    { "userId": "{{userId}}", "amount": 60.00 },
+    { "userId": "{{secondUserId}}", "amount": 60.00 }
+  ]
+}
+
+
+### 4.3 Lista wydatków w wycieczce
+GET {{host}}/api/trips/{{tripId}}/expenses
+Authorization: Bearer {{authToken}}
+
+
+### 4.4 Edycja wydatku (tylko autor-płacący)
+PUT {{host}}/api/trips/expenses/{{expenseId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "title": "TEST: Wydatek po edycji",
+  "description": "Zmieniony opis i kwota",
+  "amount": 123.45,
+  "currency": "PLN",
+  "category": 5,
+  "date": "2027-01-12T00:00:00Z",
+  "splits": null
+}
+
+
+### 4.5 Usunięcie wydatku (tylko autor-płacący)
+DELETE {{host}}/api/trips/expenses/{{expenseId}}
+Authorization: Bearer {{authToken}}
+
+
+### =========================================================
+### 5. COMMENTS (edit/delete tylko autor; odpowiedzi – 1 poziom)
+### =========================================================
+
+### 5.1 Dodanie komentarza top-level
+# @name createTestComment
+POST {{host}}/api/trips/{{tripId}}/comments
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "content": "TEST: Komentarz główny z pliku .http"
+}
+
+> {%
+    client.global.set("commentId", response.body.id);
+    client.global.set("parentCommentId", response.body.id);
+%}
+
+
+### 5.2 Dodanie ODPOWIEDZI na komentarz (parentId)
+POST {{host}}/api/trips/{{tripId}}/comments
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "content": "TEST: To jest odpowiedź na komentarz",
+  "parentId": "{{parentCommentId}}"
+}
+
+
+### 5.3 Lista komentarzy (płaska – frontend buduje drzewo)
+GET {{host}}/api/trips/{{tripId}}/comments
+Authorization: Bearer {{authToken}}
+
+
+### 5.4 Edycja własnego komentarza (tylko autor)
+PUT {{host}}/api/trips/comments/{{commentId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "content": "TEST: Komentarz po edycji"
+}
+
+
+### 5.5 Usunięcie własnego komentarza (kaskadowo zabiera odpowiedzi)
+DELETE {{host}}/api/trips/comments/{{commentId}}
+Authorization: Bearer {{authToken}}
+
+
+### =========================================================
+### 6. PARTICIPANTS
+###    Add/Remove – Editor+; Change role – tylko Owner
+### =========================================================
+
+### 6.1 Zaproszenie drugiego testowego usera
+# @name addTestParticipant
+POST {{host}}/api/trips/{{tripId}}/participants
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "email": "test.buddy@example.com",
+  "role": 0
+}
+
+# Role: 0 = Member, 1 = Editor, 2 = Organizer
+> {% client.global.set("participantUserId", response.body.userId); %}
+
+
+### 6.2 Lista uczestników wycieczki
+GET {{host}}/api/trips/{{tripId}}/participants
+Authorization: Bearer {{authToken}}
+
+
+### 6.3 Zmiana roli uczestnika – Member → Editor (tylko Owner)
+PUT {{host}}/api/trips/{{tripId}}/participants/{{participantUserId}}/role
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "role": 1
+}
+
+
+### 6.4 Zmiana roli uczestnika – Editor → Organizer
+PUT {{host}}/api/trips/{{tripId}}/participants/{{participantUserId}}/role
+Content-Type: {{contentType}}
+Authorization: Bearer {{authToken}}
+
+{
+  "role": 2
+}
+
+
+### 6.5 Usunięcie uczestnika z wycieczki (Editor+)
+DELETE {{host}}/api/trips/{{tripId}}/participants/{{participantUserId}}
+Authorization: Bearer {{authToken}}
+
+
+### 6.6 Opuszczenie wycieczki przez bieżącego użytkownika (Owner nie może)
+### Wywołaj jako buddy – po wcześniejszym zaproszeniu go.
+POST {{host}}/api/trips/{{tripId}}/leave
+Authorization: Bearer {{secondUserToken}}
+
+
+### =========================================================
+### 7. HISTORY (change log z MongoDB)
+### =========================================================
+
+### 7.1 Historia zdarzeń dla wycieczki (domyślnie 100 wpisów, od najnowszych)
+GET {{host}}/api/trips/{{tripId}}/history
+Authorization: Bearer {{authToken}}
+
+
+### 7.2 Historia z limitem 10 wpisów
+GET {{host}}/api/trips/{{tripId}}/history?limit=10
+Authorization: Bearer {{authToken}}
+
+
+### =========================================================
+### 8. Scenariusz błędów – do sprawdzenia guard'ów uprawnień
+### =========================================================
+
+### 8.1 Próba edycji wycieczki przez Membera – zwraca 400 "permission"
+### Wymaga: buddy zaproszony z rolą 0 (Member) – sekcja 6.1.
+PUT {{host}}/api/trips/{{tripId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{secondUserToken}}
+
+{
+  "name": "TEST: Próba edycji jako Member",
+  "description": "To powinno się nie udać",
+  "startDate": "2027-01-10T00:00:00Z",
+  "endDate": "2027-01-15T00:00:00Z"
+}
+
+
+### 8.2 Próba usunięcia cudzego wydatku – 400 "Only the payer can delete"
+DELETE {{host}}/api/trips/expenses/{{expenseId}}
+Authorization: Bearer {{secondUserToken}}
+
+
+### 8.3 Próba zmiany roli przez nie-ownera – 400 "Only the trip owner"
+PUT {{host}}/api/trips/{{tripId}}/participants/{{userId}}/role
+Content-Type: {{contentType}}
+Authorization: Bearer {{secondUserToken}}
+
+{
+  "role": 2
+}

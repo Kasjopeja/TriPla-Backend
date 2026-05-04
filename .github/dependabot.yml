@@ -1,0 +1,43 @@
+version: 2
+
+updates:
+  # NuGet – wszystkie .csproj
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "backend"
+    groups:
+      microsoft:
+        patterns:
+          - "Microsoft.*"
+          - "System.*"
+      testing:
+        patterns:
+          - "NUnit*"
+          - "FluentAssertions*"
+          - "Moq*"
+
+  # GitHub Actions używane w workflowach
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci"
+
+  # Docker (image w Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/TriPla.Backend.Api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "docker"

@@ -1,0 +1,128 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+# Anuluje stare runy gdy nowy commit wpadnie na ten sam branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET (z global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'global.json') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore TriPla-Backend.sln
+
+      - name: Build
+        run: dotnet build TriPla-Backend.sln --configuration Release --no-restore
+
+      - name: Test
+        run: |
+          dotnet test TriPla-Backend.sln \
+            --configuration Release \
+            --no-build \
+            --logger "trx;LogFileName=test-results.trx" \
+            --logger "console;verbosity=normal" \
+            --results-directory ./TestResults \
+            --collect:"XPlat Code Coverage"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./TestResults
+          retention-days: 14
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    needs: build-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./TriPla.Backend.Api/Dockerfile
+          push: false
+          load: true
+          tags: |
+            tripla-api:${{ github.sha }}
+            tripla-api:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Trivy – CVE scan obrazu
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: tripla-api:${{ github.sha }}
+          format: table
+          exit-code: '0'                # nie blokuj CI – tylko raport
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Save image as tar
+        run: docker save tripla-api:${{ github.sha }} tripla-api:latest -o /tmp/tripla-api.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tripla-api-image-${{ github.sha }}
+          path: /tmp/tripla-api.tar
+          retention-days: 14
+          # Nie ma `compression-level: 0` bo .tar i tak nie kompresuje wewnątrz.
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore TriPla-Backend.sln
+
+      - name: Vulnerable packages (transitive included)
+        run: dotnet list TriPla-Backend.sln package --vulnerable --include-transitive
+
+      - name: Outdated packages
+        run: dotnet list TriPla-Backend.sln package --outdated || true

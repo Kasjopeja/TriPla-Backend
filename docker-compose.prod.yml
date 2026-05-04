@@ -1,0 +1,84 @@
+# Stack produkcyjny do lokalnego smoke-testu obrazów wyplutych z CI.
+#
+# Użycie:
+#   1. Pobierz artefakty z GitHub Actions (tripla-api-image-*.tar i tripla-frontend-image-*.tar).
+#   2. docker load -i tripla-api.tar
+#   3. docker load -i tripla-frontend.tar  (z folderu Frontendu)
+#   4. docker compose -f docker-compose.prod.yml up
+#
+# Albo zbuduj lokalnie:
+#   docker compose -f docker-compose.prod.yml --profile build build
+#
+# Frontend będzie pod http://localhost:8080, API pod http://localhost:8081.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: tripla
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - tripla_pg_prod:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tripla"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo
+      MONGO_INITDB_ROOT_PASSWORD: mongo
+    volumes:
+      - tripla_mongo_prod:/data/db
+      - ./docker/mongo/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    image: tripla-api:latest
+    profiles: ["", "build"]
+    build:
+      context: .
+      dockerfile: TriPla.Backend.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=tripla;Username=postgres;Password=postgres"
+      MongoDb__ConnectionString: "mongodb://mongo:mongo@mongo:27017/?authSource=admin"
+      MongoDb__Database: "tripla"
+      Jwt__Issuer: "TriPla"
+      Jwt__Audience: "TriPla"
+      # WAŻNE: w produkcji ustaw silny sekret >= 32 znaki, najlepiej z .env / sekretnika.
+      Jwt__SecretKey: "${JWT_SECRET:-please-replace-with-strong-32+char-secret-please}"
+      Jwt__ExpirationMinutes: "120"
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    image: tripla-frontend:latest
+    profiles: ["", "build"]
+    build:
+      context: ../TriPla-Frontend
+    environment:
+      API_URL: "http://api:8080"
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  tripla_pg_prod:
+  tripla_mongo_prod:

@@ -1,0 +1,41 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    - cron: '0 6 * * 1'   # poniedziałek 06:00 UTC
+
+jobs:
+  analyze:
+    name: Analyze C#
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Init CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          queries: security-extended
+
+      - name: Restore
+        run: dotnet restore TriPla-Backend.sln
+
+      - name: Build
+        run: dotnet build TriPla-Backend.sln --configuration Release --no-restore
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3

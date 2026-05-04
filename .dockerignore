@@ -1,0 +1,43 @@
+# Build output
+**/bin
+**/obj
+**/out
+
+# Dev rzeczy
+**/.vs
+**/.vscode
+**/.idea
+**/*.user
+**/*.suo
+**/.DS_Store
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Lokalne
+**/appsettings.Development.json
+**/secrets.json
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Testy / artefakty
+**/TestResults
+**/coverage
+**/*.trx
+
+# Docker
+**/Dockerfile*
+**/.dockerignore
+
+# Inne
+**/node_modules
+**/dist
+README.md
+CLAUDE.md
+*.7z
+docker-compose*.yml
+docker/
+opis.txt
