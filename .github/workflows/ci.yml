@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: ./TestResults
@@ -98,7 +98,7 @@ jobs:
         run: docker save tripla-api:${{ github.sha }} tripla-api:latest -o /tmp/tripla-api.tar
 
       - name: Upload image artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tripla-api-image-${{ github.sha }}
           path: /tmp/tripla-api.tar
