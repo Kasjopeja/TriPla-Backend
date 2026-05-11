@@ -24,5 +24,8 @@ db.createUser({
 // Kolekcja: log zmian wycieczek.
 db.createCollection('trip_change_log');
 db.trip_change_log.createIndex({ tripId: 1, occurredAt: -1 });
+// Dodatkowy indeks złożony – pokrywa zapytania filtrowane po typie wpisu
+// (np. "pokaż tylko ExpenseAdded") i sortowane po dacie.
+db.trip_change_log.createIndex({ tripId: 1, type: 1, occurredAt: -1 });
 
 print('[tripla-mongo] Inicjalizacja zakończona. Kolekcja trip_change_log gotowa.');

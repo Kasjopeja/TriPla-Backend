@@ -90,7 +90,7 @@ jobs:
         with:
           image-ref: tripla-api:${{ github.sha }}
           format: table
-          exit-code: "0" # nie blokuj CI – tylko raport
+          exit-code: '0'                # nie blokuj CI – tylko raport
           severity: HIGH,CRITICAL
           ignore-unfixed: true
 

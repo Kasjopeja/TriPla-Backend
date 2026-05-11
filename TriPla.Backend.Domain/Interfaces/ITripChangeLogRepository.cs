@@ -5,5 +5,5 @@ namespace TriPla.Backend.Domain.Interfaces;
 public interface ITripChangeLogRepository
 {
     Task AppendAsync(TripChangeLogEntry entry, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<TripChangeLogEntry>> GetByTripIdAsync(Guid tripId, int limit = 100, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TripChangeLogEntry>> QueryAsync(ChangeLogQuery query, CancellationToken cancellationToken = default);
 }

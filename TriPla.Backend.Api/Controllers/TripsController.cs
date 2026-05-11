@@ -7,6 +7,7 @@ using TriPla.Backend.Application.DTOs.Expenses;
 using TriPla.Backend.Application.DTOs.Participants;
 using TriPla.Backend.Application.DTOs.Trips;
 using TriPla.Backend.Application.Interfaces;
+using TriPla.Backend.Domain.Entities;
 
 namespace TriPla.Backend.Api.Controllers;
 
@@ -210,8 +211,59 @@ public class TripsController : ControllerBase
     }
 
     [HttpGet("{id:guid}/history")]
-    public async Task<IActionResult> GetHistory(Guid id, [FromQuery] int limit = 100, CancellationToken ct = default) =>
-        (await _historyService.GetAsync(id, limit, ct)).ToActionResult();
+    public async Task<IActionResult> GetHistory(
+        Guid id,
+        [FromQuery] string? type = null,
+        [FromQuery] Guid? actorId = null,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDir = null,
+        [FromQuery] int skip = 0,
+        [FromQuery] int limit = 100,
+        CancellationToken ct = default)
+    {
+        if (!TryParseSortField(sortBy, out var sortField))
+            return BadRequest(new { error = $"Invalid sortBy '{sortBy}'. Allowed: occurredAt, type, actorEmail." });
+        if (!TryParseSortDirection(sortDir, out var sortDirection))
+            return BadRequest(new { error = $"Invalid sortDir '{sortDir}'. Allowed: asc, desc." });
+
+        var query = new ChangeLogQuery(id, type, actorId, from, to, sortField, sortDirection, skip, limit);
+        return (await _historyService.QueryAsync(query, ct)).ToActionResult();
+    }
+
+    private static bool TryParseSortField(string? value, out ChangeLogSortField field)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            field = ChangeLogSortField.OccurredAt;
+            return true;
+        }
+        switch (value.ToLowerInvariant())
+        {
+            case "occurredat": field = ChangeLogSortField.OccurredAt; return true;
+            case "type": field = ChangeLogSortField.Type; return true;
+            case "actoremail": field = ChangeLogSortField.ActorEmail; return true;
+            default: field = ChangeLogSortField.OccurredAt; return false;
+        }
+    }
+
+    private static bool TryParseSortDirection(string? value, out SortDirection direction)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            direction = SortDirection.Descending;
+            return true;
+        }
+        switch (value.ToLowerInvariant())
+        {
+            case "asc":
+            case "ascending": direction = SortDirection.Ascending; return true;
+            case "desc":
+            case "descending": direction = SortDirection.Descending; return true;
+            default: direction = SortDirection.Descending; return false;
+        }
+    }
 
     [HttpPost("{id:guid}/leave")]
     public async Task<IActionResult> Leave(Guid id, CancellationToken ct)

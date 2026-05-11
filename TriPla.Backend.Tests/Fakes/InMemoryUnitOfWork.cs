@@ -256,12 +256,39 @@ public class InMemoryTripChangeLogRepository : ITripChangeLogRepository
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<TripChangeLogEntry>> GetByTripIdAsync(Guid tripId, int limit = 100, CancellationToken _ = default)
+    public Task<IReadOnlyList<TripChangeLogEntry>> QueryAsync(ChangeLogQuery query, CancellationToken _ = default)
     {
-        IReadOnlyList<TripChangeLogEntry> list = Store
-            .Where(e => e.TripId == tripId)
-            .OrderByDescending(e => e.OccurredAt)
-            .Take(limit)
+        var filtered = Store.Where(e => e.TripId == query.TripId);
+
+        if (!string.IsNullOrWhiteSpace(query.Type))
+            filtered = filtered.Where(e => e.Type == query.Type);
+        if (query.ActorId is { } actorId)
+            filtered = filtered.Where(e => e.ActorId == actorId);
+        if (query.From is { } from)
+            filtered = filtered.Where(e => e.OccurredAt >= from);
+        if (query.To is { } to)
+            filtered = filtered.Where(e => e.OccurredAt <= to);
+
+        var sorted = (query.SortBy, query.SortDirection) switch
+        {
+            (ChangeLogSortField.OccurredAt, SortDirection.Ascending) =>
+                filtered.OrderBy(e => e.OccurredAt),
+            (ChangeLogSortField.OccurredAt, SortDirection.Descending) =>
+                filtered.OrderByDescending(e => e.OccurredAt),
+            (ChangeLogSortField.Type, SortDirection.Ascending) =>
+                filtered.OrderBy(e => e.Type).ThenByDescending(e => e.OccurredAt),
+            (ChangeLogSortField.Type, SortDirection.Descending) =>
+                filtered.OrderByDescending(e => e.Type).ThenByDescending(e => e.OccurredAt),
+            (ChangeLogSortField.ActorEmail, SortDirection.Ascending) =>
+                filtered.OrderBy(e => e.ActorEmail).ThenByDescending(e => e.OccurredAt),
+            (ChangeLogSortField.ActorEmail, SortDirection.Descending) =>
+                filtered.OrderByDescending(e => e.ActorEmail).ThenByDescending(e => e.OccurredAt),
+            _ => filtered.OrderByDescending(e => e.OccurredAt),
+        };
+
+        IReadOnlyList<TripChangeLogEntry> list = sorted
+            .Skip(query.Skip)
+            .Take(query.Limit)
             .ToList();
         return Task.FromResult(list);
     }
